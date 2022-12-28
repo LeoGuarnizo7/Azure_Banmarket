@@ -1,0 +1,626 @@
+##ESTE FLUJO PRESENTA UN PRIMER FLUJO DONDE SE COPIAN UN ORIGEN DE DATOS DE UN PIPELINE AL AREA SE STAGING Y 
+SE AGREGA UNOS FLUJOS ADICIONALES DE GESTION DE HUERFANOS Y DE IMPORTE AL DATA WAREHOUSE##
+
+
+{
+    "name": "PL_CARGA_CSV_CUSTOMER",
+    "properties": {
+        "description": "LT_customer.zip",
+        "activities": [
+            {
+                "name": "GITHUB_CSV_CUSTOMER_ZIP",
+                "type": "Copy",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "BinarySource",
+                        "storeSettings": {
+                            "type": "HttpReadSettings",
+                            "requestMethod": "GET"
+                        },
+                        "formatSettings": {
+                            "type": "BinaryReadSettings",
+                            "compressionProperties": {
+                                "type": "ZipDeflateReadSettings"
+                            }
+                        }
+                    },
+                    "sink": {
+                        "type": "BinarySink",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageWriteSettings"
+                        }
+                    },
+                    "enableStaging": false,
+                    "logSettings": {
+                        "enableCopyActivityLog": true,
+                        "copyActivityLogSettings": {
+                            "logLevel": "Warning",
+                            "enableReliableLogging": false
+                        },
+                        "logLocationSettings": {
+                            "linkedServiceName": {
+                                "referenceName": "errores",
+                                "type": "LinkedServiceReference"
+                            },
+                            "path": "errores"
+                        }
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "GIT_customer_zip",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "blob_customer",
+                        "type": "DatasetReference"
+                    }
+                ]
+            },
+            {
+                "name": "CA_CSV_CUSTOMER",
+                "type": "Copy",
+                "dependsOn": [
+                    {
+                        "activity": "GITHUB_CSV_CUSTOMER_ZIP",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "DelimitedTextSource",
+                        "storeSettings": {
+                            "type": "AzureBlobStorageReadSettings",
+                            "recursive": true,
+                            "enablePartitionDiscovery": false
+                        },
+                        "formatSettings": {
+                            "type": "DelimitedTextReadSettings"
+                        }
+                    },
+                    "sink": {
+                        "type": "AzureSqlSink",
+                        "preCopyScript": "truncate table stage.customer",
+                        "writeBehavior": "insert",
+                        "sqlWriterUseTableLock": false,
+                        "disableMetricsCollection": false
+                    },
+                    "enableStaging": false,
+                    "logSettings": {
+                        "enableCopyActivityLog": true,
+                        "copyActivityLogSettings": {
+                            "logLevel": "Warning",
+                            "enableReliableLogging": false
+                        },
+                        "logLocationSettings": {
+                            "linkedServiceName": {
+                                "referenceName": "errores",
+                                "type": "LinkedServiceReference"
+                            },
+                            "path": "errores"
+                        }
+                    },
+                    "translator": {
+                        "type": "TabularTranslator",
+                        "typeConversion": true,
+                        "typeConversionSettings": {
+                            "allowDataTruncation": true,
+                            "treatBooleanAsNumber": false
+                        }
+                    }
+                },
+                "inputs": [
+                    {
+                        "referenceName": "CA_customer",
+                        "type": "DatasetReference"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "referenceName": "stage_customer",
+                        "type": "DatasetReference"
+                    }
+                ]
+            },
+            {
+                "name": "DF_CLIENTES",
+                "type": "ExecuteDataFlow",
+                "dependsOn": [
+                    {
+                        "activity": "CA_CSV_CUSTOMER",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataflow": {
+                        "referenceName": "DF_CLIENTES",
+                        "type": "DataFlowReference"
+                    },
+                    "compute": {
+                        "coreCount": 8,
+                        "computeType": "General"
+                    },
+                    "traceLevel": "Fine"
+                }
+            },
+            {
+                "name": "HF_CLIENTES",
+                "type": "ExecuteDataFlow",
+                "dependsOn": [
+                    {
+                        "activity": "DF_CLIENTES",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataflow": {
+                        "referenceName": "HF_CLIENTES",
+                        "type": "DataFlowReference"
+                    },
+                    "compute": {
+                        "coreCount": 8,
+                        "computeType": "General"
+                    },
+                    "traceLevel": "Fine"
+                }
+            },
+            {
+                "name": "HF_DIM_CLIENTES",
+                "type": "ExecuteDataFlow",
+                "dependsOn": [
+                    {
+                        "activity": "HF_CLIENTES",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "dataflow": {
+                        "referenceName": "HF_DIM_CLIENTES",
+                        "type": "DataFlowReference"
+                    },
+                    "compute": {
+                        "coreCount": 8,
+                        "computeType": "General"
+                    },
+                    "traceLevel": "Fine"
+                }
+            }
+        ],
+        "annotations": [],
+        "lastPublishTime": "2022-11-06T22:36:57Z"
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}
+
+##IMPORTE AL DATA WAREHOUSE##
+{
+    "name": "DF_CLIENTES",
+    "properties": {
+        "type": "MappingDataFlow",
+        "typeProperties": {
+            "sources": [
+                {
+                    "dataset": {
+                        "referenceName": "STAGE_DF_LOCALIZAGEO",
+                        "type": "DatasetReference"
+                    },
+                    "name": "StageLocalizacion"
+                },
+                {
+                    "dataset": {
+                        "referenceName": "stage_customer",
+                        "type": "DatasetReference"
+                    },
+                    "name": "StageClientesD"
+                },
+                {
+                    "dataset": {
+                        "referenceName": "stage_customer",
+                        "type": "DatasetReference"
+                    },
+                    "name": "StageClientes"
+                }
+            ],
+            "sinks": [
+                {
+                    "dataset": {
+                        "referenceName": "DIM_CLIENTES",
+                        "type": "DatasetReference"
+                    },
+                    "name": "DBOClientesDistinc"
+                }
+            ],
+            "transformations": [
+                {
+                    "name": "JNStageClientesD"
+                },
+                {
+                    "name": "FLTStageClientesD"
+                },
+                {
+                    "name": "AGGStageClientesD"
+                },
+                {
+                    "name": "CSStageClientesD"
+                },
+                {
+                    "name": "JNClientesLocalizacion"
+                },
+                {
+                    "name": "FLTClientesLocalizacion"
+                },
+                {
+                    "name": "JNClientesDistinc"
+                }
+            ],
+            "scriptLines": [
+                "source(output(",
+                "          {Cliente ID} as string,",
+                "          Ciudad as string,",
+                "          {Codigo Postal} as string,",
+                "          Region as string,",
+                "          Pais as string,",
+                "          Estado as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> StageLocalizacion",
+                "source(output(",
+                "          {Cliente ID} as string,",
+                "          Nombre as string,",
+                "          Apellido as string,",
+                "          Segmento as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> StageClientesD",
+                "source(output(",
+                "          {Cliente ID} as string,",
+                "          Nombre as string,",
+                "          Apellido as string,",
+                "          Segmento as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> StageClientes",
+                "StageClientesD, StageLocalizacion join(StageClientesD@{Cliente ID} == StageLocalizacion@{Cliente ID},",
+                "     joinType:'left',",
+                "     matchType:'exact',",
+                "     ignoreSpaces: false,",
+                "     broadcast: 'auto')~> JNStageClientesD",
+                "JNStageClientesD filter(StageLocalizacion@{Cliente ID}!=\"\") ~> FLTStageClientesD",
+                "FLTStageClientesD aggregate(groupBy(StageClientesD@{Cliente ID}),",
+                "     Count = count()) ~> AGGStageClientesD",
+                "AGGStageClientesD split(Count>1,",
+                "     disjoint: false) ~> CSStageClientesD@(Duplicate, Distinct)",
+                "StageClientes, StageLocalizacion join(StageClientes@{Cliente ID} == StageLocalizacion@{Cliente ID},",
+                "     joinType:'left',",
+                "     matchType:'exact',",
+                "     ignoreSpaces: false,",
+                "     broadcast: 'auto')~> JNClientesLocalizacion",
+                "JNClientesLocalizacion filter(StageLocalizacion@{Cliente ID}!=\"\") ~> FLTClientesLocalizacion",
+                "FLTClientesLocalizacion, CSStageClientesD@Distinct join(StageClientes@{Cliente ID} == CSStageClientesD@Distinct@{Cliente ID},",
+                "     joinType:'inner',",
+                "     matchType:'exact',",
+                "     ignoreSpaces: false,",
+                "     broadcast: 'auto')~> JNClientesDistinc",
+                "JNClientesDistinc sink(allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     input(",
+                "          cliente_id as string,",
+                "          nombre as string,",
+                "          apellido as string,",
+                "          segmento as string,",
+                "          pais as string,",
+                "          estado as string,",
+                "          ciudad as string,",
+                "          codigo_postal as string",
+                "     ),",
+                "     deletable:false,",
+                "     insertable:true,",
+                "     updateable:false,",
+                "     upsertable:false,",
+                "     format: 'table',",
+                "     skipDuplicateMapInputs: true,",
+                "     skipDuplicateMapOutputs: true,",
+                "     errorHandlingOption: 'stopOnFirstError',",
+                "     mapColumn(",
+                "          cliente_id = StageClientes@{Cliente ID},",
+                "          nombre = Nombre,",
+                "          apellido = Apellido,",
+                "          segmento = Segmento,",
+                "          pais = Pais,",
+                "          estado = Estado,",
+                "          ciudad = Ciudad,",
+                "          codigo_postal = {Codigo Postal}",
+                "     )) ~> DBOClientesDistinc"
+            ]
+        }
+    }
+}
+
+## SE AGREGA UN FLUJO ADICIONAL PARA TRATAR LOS HERFANOS CON OTRAS TABLAS CONECTADAS A LA TABLA DE DIMENSIONES Y DARLE UN MEJOR USO A LOS DATOS,
+LLEVANDO UN MODELO DESNORMALIZADO##
+
+{
+    "name": "HF_CLIENTES",
+    "properties": {
+        "type": "MappingDataFlow",
+        "typeProperties": {
+            "sources": [
+                {
+                    "dataset": {
+                        "referenceName": "stage_customer",
+                        "type": "DatasetReference"
+                    },
+                    "name": "StageClientes"
+                },
+                {
+                    "dataset": {
+                        "referenceName": "STAGE_DF_LOCALIZAGEO",
+                        "type": "DatasetReference"
+                    },
+                    "name": "StageLocalizaciones"
+                }
+            ],
+            "sinks": [
+                {
+                    "dataset": {
+                        "referenceName": "DIM_CLIENTES_HF",
+                        "type": "DatasetReference"
+                    },
+                    "name": "DBOClientes"
+                }
+            ],
+            "transformations": [
+                {
+                    "name": "EXTClientes"
+                },
+                {
+                    "name": "DVClientes"
+                }
+            ],
+            "scriptLines": [
+                "source(output(",
+                "          {Cliente ID} as string,",
+                "          Nombre as string,",
+                "          Apellido as string,",
+                "          Segmento as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> StageClientes",
+                "source(output(",
+                "          {Cliente ID} as string,",
+                "          Ciudad as string,",
+                "          {Codigo Postal} as string,",
+                "          Region as string,",
+                "          Pais as string,",
+                "          Estado as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> StageLocalizaciones",
+                "StageClientes, StageLocalizaciones exists(StageClientes@{Cliente ID} == StageLocalizaciones@{Cliente ID},",
+                "     negate:true,",
+                "     broadcast: 'auto')~> EXTClientes",
+                "EXTClientes derive(pais = \"Pais_Localizacion sin identificar\",",
+                "          estado = \"Estado_Localizacion sin identificar\",",
+                "          ciudad = \"Ciudad_Localizacion sin identificar\",",
+                "          codigo_postal = \"NA001COP\") ~> DVClientes",
+                "DVClientes sink(allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     input(",
+                "          cliente_id as string,",
+                "          nombre as string,",
+                "          apellido as string,",
+                "          segmento as string,",
+                "          pais as string,",
+                "          estado as string,",
+                "          ciudad as string,",
+                "          codigo_postal as string",
+                "     ),",
+                "     deletable:false,",
+                "     insertable:true,",
+                "     updateable:false,",
+                "     upsertable:false,",
+                "     format: 'table',",
+                "     skipDuplicateMapInputs: true,",
+                "     skipDuplicateMapOutputs: true,",
+                "     errorHandlingOption: 'stopOnFirstError',",
+                "     mapColumn(",
+                "          cliente_id = {Cliente ID},",
+                "          nombre = Nombre,",
+                "          apellido = Apellido,",
+                "          segmento = Segmento,",
+                "          pais,",
+                "          estado,",
+                "          ciudad,",
+                "          codigo_postal",
+                "     )) ~> DBOClientes"
+            ]
+        }
+    }
+}
+
+##GESTION DE HUERFANOS DE LA DIMENSION CON LA TABLA DE HECHOS##
+
+{
+    "name": "HF_DIM_CLIENTES",
+    "properties": {
+        "type": "MappingDataFlow",
+        "typeProperties": {
+            "sources": [
+                {
+                    "dataset": {
+                        "referenceName": "stage_detalle_envios",
+                        "type": "DatasetReference"
+                    },
+                    "name": "StageDetalleEnvios"
+                },
+                {
+                    "dataset": {
+                        "referenceName": "DIM_CLIENTE_HF",
+                        "type": "DatasetReference"
+                    },
+                    "name": "DIMClientes"
+                }
+            ],
+            "sinks": [
+                {
+                    "dataset": {
+                        "referenceName": "DIM_CLIENTES",
+                        "type": "DatasetReference"
+                    },
+                    "name": "DBOClientes"
+                }
+            ],
+            "transformations": [
+                {
+                    "name": "EXTClientes"
+                },
+                {
+                    "name": "AGGClientes"
+                },
+                {
+                    "name": "SLTClientes"
+                },
+                {
+                    "name": "DVClientes"
+                }
+            ],
+            "scriptLines": [
+                "source(output(",
+                "          num_order as string,",
+                "          fec_orden as date,",
+                "          fec_envio as date,",
+                "          modo_envio as string,",
+                "          cliente_id as string,",
+                "          imp_subtotal as double,",
+                "          region_id_envio as integer",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> StageDetalleEnvios",
+                "source(output(",
+                "          cliente_id as string,",
+                "          nombre as string,",
+                "          apellido as string,",
+                "          segmento as string,",
+                "          pais as string,",
+                "          estado as string,",
+                "          ciudad as string,",
+                "          codigo_postal as string",
+                "     ),",
+                "     allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     isolationLevel: 'READ_UNCOMMITTED',",
+                "     format: 'table') ~> DIMClientes",
+                "StageDetalleEnvios, DIMClientes exists(StageDetalleEnvios@cliente_id == DIMClientes@cliente_id,",
+                "     negate:true,",
+                "     broadcast: 'auto')~> EXTClientes",
+                "EXTClientes aggregate(groupBy(cliente_id),",
+                "     Count = count()) ~> AGGClientes",
+                "AGGClientes select(mapColumn(",
+                "          cliente_id",
+                "     ),",
+                "     skipDuplicateMapInputs: true,",
+                "     skipDuplicateMapOutputs: true) ~> SLTClientes",
+                "SLTClientes derive(nombre = \"nombre sin identificar\",",
+                "          apellido = \"apellido sin identificar\",",
+                "          segmento = \"segmento sin identificar\",",
+                "          pais = \"pais sin identificar\",",
+                "          estado = \"estado sin identificar\",",
+                "          ciudad = \"ciudad sin identificar\",",
+                "          codigo_postal = \"NA001COPO\") ~> DVClientes",
+                "DVClientes sink(allowSchemaDrift: true,",
+                "     validateSchema: false,",
+                "     input(",
+                "          cliente_id as string,",
+                "          nombre as string,",
+                "          apellido as string,",
+                "          segmento as string,",
+                "          pais as string,",
+                "          estado as string,",
+                "          ciudad as string,",
+                "          codigo_postal as string",
+                "     ),",
+                "     deletable:false,",
+                "     insertable:true,",
+                "     updateable:false,",
+                "     upsertable:false,",
+                "     format: 'table',",
+                "     skipDuplicateMapInputs: true,",
+                "     skipDuplicateMapOutputs: true,",
+                "     errorHandlingOption: 'stopOnFirstError',",
+                "     mapColumn(",
+                "          cliente_id,",
+                "          nombre,",
+                "          apellido,",
+                "          segmento,",
+                "          pais,",
+                "          estado,",
+                "          ciudad,",
+                "          codigo_postal",
+                "     )) ~> DBOClientes"
+            ]
+        }
+    }
+}
