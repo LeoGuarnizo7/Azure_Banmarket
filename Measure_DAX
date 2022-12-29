@@ -1,0 +1,59 @@
+##MEDIDAS DAX##
+
+% Deduccion Covid = IFERROR([Covid]/[Ganancia bruta],0)
+% Deduccion Impuestos = IFERROR(SUM(Ventas[Impuestos])/sum(Ventas[Ganancia]),0)
+% Deduccion Logistica = IFERROR(SUM(Ventas[Costo logístico])/sum(Ventas[Ganancia]),0)
+% Descuento = IFERROR([Descuento]/[Valor unitario],0)
+% Ganancia Empresa = IFERROR(CALCULATE(sum(Ventas[Ganancia neta])-sum(Ventas[Impuestos]))/sum(Ventas[Ganancia]),0)
+% Total Deducciones = IFERROR(CALCULATE((sum(Ventas[Provisión covid])+sum(Ventas[Costo logístico])+sum(Ventas[Impuestos]))/sum(Ventas[Ganancia])),0)
+% Var Cantidad Semanal = IFERROR(CALCULATE([Cantidad semana actual]-[Cantidad semana anterior])/[Cantidad semana anterior],0)
+% Var Cantidad Trimestral = IFERROR(CALCULATE([Cantidad trimestre actual]-[Cantidad trimestre anterior])/[Cantidad trimestre anterior],0)
+Cantidad = SUM(Ventas[num_cantidad])
+Cantidad semana actual = IFERROR(CALCULATE(SUM(Ventas[num_cantidad]),Tiempo[id_año]=MAX(Tiempo[id_año]), Tiempo[Semana]=MAX(Tiempo[Semana])),0)
+Cantidad semana anterior = IFERROR(CALCULATE(SUM(Ventas[num_cantidad]),Tiempo[id_año]=MAX(Tiempo[id_año]), Tiempo[Semana]=MAX(Tiempo[Semana])-1),0)
+Cantidad trimestre actual = IFERROR(CALCULATE(SUM(Ventas[num_cantidad]),Tiempo[id_año]=MAX(Tiempo[id_año]), Tiempo[Trimestre]=MAX(Tiempo[Trimestre])),0)
+Cantidad trimestre anterior = IFERROR(CALCULATE(SUM(Ventas[num_cantidad]),Tiempo[id_año]=MAX(Tiempo[id_año]), Tiempo[Trimestre]=MAX(Tiempo[Trimestre])-1),0)
+Clientes = COUNT(Ventas[id_cliente])
+Covid = SUM(Ventas[Provisión covid])
+Cumplimiento Target = IFERROR(SUM(Ventas[Ganancia])/SUM(Target[Target]),0)
+Descuento = SUM(Ventas[Descuento])
+Ganancia bruta = IFERROR(SUM(Ventas[Ganancia]),0)
+Ganancia neta = IFERROR(SUM(Ventas[Ganancia neta])-[Impuestos],0)
+Impuestos = SUM(Ventas[Impuestos])
+Logística = SUM(Ventas[Costo logístico])
+Prom. dias de envio = AVERAGE(Ventas[Dias de Envio])
+ROI = IFERROR(CALCULATE(SUM(Ventas[Ganancia])-SUM(Target[Investment]))/SUM(Target[Investment]),0)
+ROI - Año actual = IFERROR(CALCULATE((SUM(Ventas[Ganancia])-SUM(Target[Investment]))/SUM(Target[Investment]), Tiempo[id_año]= MAX(Tiempo[id_año])),0)
+ROI - Año pasado = IFERROR(CALCULATE((SUM(Ventas[Ganancia])-SUM(Target[Investment]))/SUM(Target[Investment]), Tiempo[id_año]= MAX(Tiempo[id_año])-1),0)
+Target = IFERROR(SUM(Target[Target]),0)
+Ticket por cliente = IFERROR([Total venta]/[Clientes],0)
+Total venta = SUM(Ventas[Total orden])
+Und. Ticket por cliente = IFERROR(ROUND([Cantidad]/[Clientes],0),0)
+Valor unitario = SUM(Ventas[Precio unitario])
+Ventas 1Quartil 3month = CALCULATE(SUM(Ventas[Total orden]),Tiempo[id_año]=MAX(Tiempo[id_año]),Tiempo[Trimestre]=MAX(Tiempo[Trimestre]),Ventas[Total orden]=PERCENTILE.INC(Ventas[Total orden],0.25))
+
+##COLUMNNAS CREADAS##
+
+##ESTAS TRES COLUMNAS FUERON CREADAS CON EL OBJETIVO DE CREAR UN CONDICIONAL QUE CLASIFICA COMO "CLIENTE PERDIDO"
+ A AQUELLOS QUE NO HAN HECHO COMPRAS POR MÁS DE 6 MESES##
+ 
+Perdida cliente = IF((INT(Clientes[Ultima compra])-INT(Clientes[Ultima fecha cliente]))>=180,"Cliente Perdido","Cliente Activo")
+Ultima compra = MAX(Ventas[Fecha orden])
+Ultima fecha cliente = LASTDATE(Ventas[Fecha orden])
+
+##EL OBJETIVO DE LA SIGUIENTE COLUMNA ERA MIRAR LA ESTACIONALIDAD DE LOS PRODUCTOS COMPARANDO EL COEFICIENTE DE SESGO DENTRO DE LA DISTRUBUCION NORMAL
+QUE SE COMPARABA CON LA MEDIA GENERAR DENTRO DE UN INTERVALO DE CONFIANZA DE 1 DESVIACION ESTANDAR A AMBOS LADOS DE LA CURVA NORMAL.
+
+DE ESTA MANERA MIENTRAS MENOR SEA EL COEFICIENTE QUERIA DECIR QUE ES UN PRODUCTO ESTRELLA, QUE GENERA MUCHAS VENTAS DURANTE TODOS LOS MESES.
+SI EL COEFICIENTE SE ALEJABA DE MANERA POSITIVA DEL INTERVALO DE CONFIANZA GENERAL ESTABLECIA QUE UN PRODUCTO ERA ESTACIONAL.
+SI EL PRODUCTO SE ENCUENTRA DENTRO DEL INTERVALO DE CONFIANZA ES UN PRODUCTO NORMAL, ESTABLE##
+
+Skewness = 
+VAR __numerator = 3 * (AVERAGEX(KEEPFILTERS(VALUES(Ventas[num_cantidad])),CALCULATE([Cantidad])) - MEDIANX(KEEPFILTERS(VALUES(Ventas[num_cantidad])),CALCULATE([Cantidad])))
+VAR __denominator = STDEV.P(Ventas[num_cantidad])
+RETURN
+DIVIDE(__numerator,__denominator,0)
+
+Investment = Target[Target]*(RANDBETWEEN(70,100)/100)
+Semana = WEEKNUM(Tiempo[Fecha].[Date])
+Trimestre = QUARTER(Tiempo[Fecha].[Date])
