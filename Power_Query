@@ -1,0 +1,96 @@
+##IMPORTE DE LA TABLA DE ENVIO##
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_dim_envio = Origen{[Schema="maestria",Item="dim_envio"]}[Data],
+    #"Tipo cambiado" = Table.TransformColumnTypes(maestria_dim_envio,{{"id_modo_envio", type text}, {"id_tipo_envio", type text}}),
+    #"Otras columnas quitadas" = Table.SelectColumns(#"Tipo cambiado",{"id_modo_envio", "desc_modo_envio", "desc_tipo_envio"}),
+    #"Columnas con nombre cambiado" = Table.RenameColumns(#"Otras columnas quitadas",{{"desc_modo_envio", "Modo envío"}, {"desc_tipo_envio", "Tipo envío"}})
+in
+    #"Columnas con nombre cambiado"
+    
+##IMPORTE DE LA TABLA DE PRODUCTO##
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_dim_producto = Origen{[Schema="maestria",Item="dim_producto"]}[Data],
+    #"Tipo cambiado" = Table.TransformColumnTypes(maestria_dim_producto,{{"id_producto", type text}}),
+    #"Otras columnas quitadas" = Table.SelectColumns(#"Tipo cambiado",{"id_producto", "desc_producto", "desc_sub_categoria", "desc_categoria"}),
+    #"Columnas con nombre cambiado" = Table.RenameColumns(#"Otras columnas quitadas",{{"desc_producto", "Producto"}, {"desc_sub_categoria", "Sub categoría"}, {"desc_categoria", "Categoría"}})
+in
+    #"Columnas con nombre cambiado"
+    
+    
+##IMPORTE DE LA TABLA DE LOCALIZACION##
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_dim_region0 = Origen{[Schema="maestria",Item="dim_region0"]}[Data],
+    #"Columnas con nombre cambiado" = Table.RenameColumns(maestria_dim_region0,{{"id_postal", "Código postal"}}),
+    #"Tipo cambiado" = Table.TransformColumnTypes(#"Columnas con nombre cambiado",{{"Código postal", type text}}),
+    #"Columnas con nombre cambiado1" = Table.RenameColumns(#"Tipo cambiado",{{"desc_ciudad", "Ciudad"}, {"desc_estado", "Estado"}, {"desc_pais", "País"}, {"id_region", "Región"}}),
+    #"Tipo cambiado1" = Table.TransformColumnTypes(#"Columnas con nombre cambiado1",{{"Región", type text}})
+in
+    #"Tipo cambiado1"
+
+##IMPORTE DE LA TABLA DE CLIENTES##
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_dim_cliente = Origen{[Schema="maestria",Item="dim_cliente"]}[Data],
+    #"Filas filtradas" = Table.SelectRows(maestria_dim_cliente, each ([desc_apellido] <> null)),
+    #"Valor reemplazado" = Table.ReplaceValue(#"Filas filtradas",null,"_",Replacer.ReplaceValue,{"desc_nombre"}),
+    #"Valor reemplazado1" = Table.ReplaceValue(#"Valor reemplazado",null,"_",Replacer.ReplaceValue,{"desc_apellido"}),
+    #"Filas filtradas1" = Table.SelectRows(#"Valor reemplazado1", each true),
+    #"Otras columnas quitadas" = Table.SelectColumns(#"Filas filtradas1",{"id_cliente", "desc_nombre_completo", "desc_segmento_negocio", "id_postal", "id_region"}),
+    #"Columnas con nombre cambiado" = Table.RenameColumns(#"Otras columnas quitadas",{{"desc_nombre_completo", "Nombre cliente"}, {"desc_segmento_negocio", "Segmento negocio"}}),
+    #"Tipo cambiado" = Table.TransformColumnTypes(#"Columnas con nombre cambiado",{{"id_postal", type text}}),
+    #"Columnas con nombre cambiado1" = Table.RenameColumns(#"Tipo cambiado",{{"id_postal", "Código postal"}})
+in
+    #"Columnas con nombre cambiado1"
+    
+##IMPORTE DE LA TABLA DE REGION##
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_dim_region1 = Origen{[Schema="maestria",Item="dim_region1"]}[Data],
+    #"Tipo cambiado" = Table.TransformColumnTypes(maestria_dim_region1,{{"id_region", type text}}),
+    #"Columnas con nombre cambiado" = Table.RenameColumns(#"Tipo cambiado",{{"desc_region", "Región"}, {"desc_detalle_region", "Detalle región"}})
+in
+    #"Columnas con nombre cambiado"
+
+
+##IMPORTE DE LA TABLA DE TIEMPO##
+
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_dim_tiempo = Origen{[Schema="maestria",Item="dim_tiempo"]}[Data],
+    #"Columnas con nombre cambiado" = Table.RenameColumns(maestria_dim_tiempo,{{"fec_datos", "Fecha"}, {"id_year_month", "id_año_mes"}, {"id_year", "id_año"}}),
+    #"Tipo cambiado" = Table.TransformColumnTypes(#"Columnas con nombre cambiado",{{"id_año", type text}}),
+    #"Columnas con nombre cambiado1" = Table.RenameColumns(#"Tipo cambiado",{{"id_month", "id_mes"}, {"id_day", "id_día"}, {"desc_month", "desc_mes"}}),
+    #"Tipo cambiado1" = Table.TransformColumnTypes(#"Columnas con nombre cambiado1",{{"id_mes", type text}, {"id_día", type text}}),
+    #"Columnas con nombre cambiado2" = Table.RenameColumns(#"Tipo cambiado1",{{"desc_day", "Día"}, {"desc_mes", "Mes"}})
+in
+    #"Columnas con nombre cambiado2"
+    
+   
+##IMPORTE DE LA TABLA DE VENTAS##
+
+let
+    Origen = Sql.Database("Herefordata.database.windows.net", "EDWH"),
+    maestria_fact_ventas = Origen{[Schema="maestria",Item="fact_ventas"]}[Data],
+    #"Personalizada agregada" = Table.AddColumn(maestria_fact_ventas, "Pérdida clientes", each List.Max([fec_orden])),
+    #"Columnas con nombre cambiado" = Table.RenameColumns(#"Personalizada agregada",{{"fec_orden", "Fecha orden"}, {"fec_envio", "Fecha envío"}}),
+    #"Otras columnas quitadas" = Table.SelectColumns(#"Columnas con nombre cambiado",{"Fecha orden", "Fecha envío", "id_producto", "id_cliente", "id_modo_envio", "id_region", "num_cantidad", "imp_unitario", "imp_linea_total", "imp_descuento", "imp_ganancia", "imp_logistico", "imp_covid", "imp_impuestos", "imp_ganancia_neta", "Pérdida clientes"}),
+    #"Columnas quitadas" = Table.RemoveColumns(#"Otras columnas quitadas",{"Pérdida clientes"}),
+    #"Tipo cambiado" = Table.TransformColumnTypes(#"Columnas quitadas",{{"id_producto", type text}, {"id_modo_envio", type text}, {"id_region", type text}, {"imp_linea_total", Currency.Type}, {"imp_descuento", Currency.Type}, {"imp_ganancia", Currency.Type}}),
+    #"Columnas con nombre cambiado1" = Table.RenameColumns(#"Tipo cambiado",{{"imp_linea_total", "Total orden"}, {"imp_descuento", "Descuento"}, {"imp_ganancia", "Ganancia"}, {"imp_logistico", "Costo logístico"}}),
+    #"Tipo cambiado1" = Table.TransformColumnTypes(#"Columnas con nombre cambiado1",{{"Costo logístico", Currency.Type}}),
+    #"Columnas con nombre cambiado2" = Table.RenameColumns(#"Tipo cambiado1",{{"imp_covid", "Provisión covid"}}),
+    #"Tipo cambiado2" = Table.TransformColumnTypes(#"Columnas con nombre cambiado2",{{"Provisión covid", Currency.Type}, {"imp_impuestos", Currency.Type}}),
+    #"Columnas con nombre cambiado3" = Table.RenameColumns(#"Tipo cambiado2",{{"imp_impuestos", "Impuestos"}, {"imp_ganancia_neta", "Ganancia neta"}}),
+    #"Tipo cambiado3" = Table.TransformColumnTypes(#"Columnas con nombre cambiado3",{{"Ganancia neta", Currency.Type}, {"imp_unitario", Currency.Type}}),
+    #"Columnas con nombre cambiado4" = Table.RenameColumns(#"Tipo cambiado3",{{"imp_unitario", "Precio unitario"}})
+in
+    #"Columnas con nombre cambiado4"
