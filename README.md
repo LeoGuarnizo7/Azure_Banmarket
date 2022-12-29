@@ -16,6 +16,8 @@ L@s autores del proyecto y por tanto es a estas personas a quien le pertenece el
 
 * Sandra Catalina Santos Pilonieta: https://www.linkedin.com/in/sandra-catalina-santos-pilonieta-4569616a/
 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 Hello!
 
 Inside the following script you will find a series of procedures performed in Master of Business Intelligence in EAN University into the class of Data Warehouse where some structured and unstructured data sources are addressed in order to make a Data Warehouse and the respective process of ETL and ELT and at the end a visualization is showm in Power BI.
